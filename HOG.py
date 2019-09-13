@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import math
 
 def get_differential_filter():
     # To do
@@ -29,11 +30,23 @@ def get_gradient(im_dx, im_dy):
     grad_angle = np.zeros((im_dx.shape[0], im_dx.shape[1]))
     grad_mag =  np.sqrt(np.square(im_dx) + np.square(im_dy))
     grad_angle = np.arctan(np.divide(im_dy, im_dx + epsilon))
+    grad_angle = np.rad2deg(grad_angle)
+    grad_angle = grad_angle%180
     return grad_mag, grad_angle
 
 
 def build_histogram(grad_mag, grad_angle, cell_size):
     # To do
+    row_cells = grad_mag.shape[0]//cell_size
+    col_cells = grad_mag.shape[1]//cell_size
+    bin_length = 6
+    ori_histo = np.zeros((row_cells, col_cells, bin_length))
+    for i in range(grad_mag.shape[0]):
+        for j in range(grad_mag.shape[1]):
+            cell_row_index = i//cell_size
+            cell_col_index = j//cell_size
+            bin_index = math.ceil(grad_angle[i, j]/30) - 1
+            ori_histo[cell_row_index, cell_col_index, bin_index] += 1
     return ori_histo
 
 
@@ -70,13 +83,18 @@ def visualize_hog(im, ori_histo, cell_size):
 
 if __name__=='__main__':
     filter_x, filter_y = get_differential_filter()
-    im = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    # im = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    im = cv2.imread('cameraman.tif', 0)
+    im = cv2.imread('einstein.jpg', 0)
+    im = im.astype('float') / 255.0
+    im = filter_image(im, np.array([[0.05472157, 0.11098164, 0.05472157], [0.11098164, 0.22508352, 0.11098164], [0.05472157, 0.11098164, 0.05472157]]))
     gradient_x = filter_image(im, filter_x)
     gradient_y = filter_image(im, filter_y)
     gradient_mag, gradient_angle = get_gradient(gradient_x, gradient_y)
-    print(gradient_mag)
-    print(gradient_angle)
-    # im = cv2.imread('cameraman.tif', 0)
+    np.savetxt("gradient_mag.txt", gradient_mag)
+    np.savetxt("gradient_angle.txt", gradient_angle)
+    histo = build_histogram(gradient_mag, gradient_angle, 8)
+    visualize_hog(im, histo, 8)
     # hog = extract_hog(im)
 
 
