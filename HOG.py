@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 
+epsilon = 0.000000001
+
 def get_differential_filter():
     # To do
     filter_x = (1/3)*np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]])
@@ -25,13 +27,11 @@ def filter_image(im, filter):
 
 def get_gradient(im_dx, im_dy):
     # To do
-    epsilon = 0.0000000001
     grad_mag = np.zeros((im_dx.shape[0], im_dx.shape[1]))
     grad_angle = np.zeros((im_dx.shape[0], im_dx.shape[1]))
     grad_mag =  np.sqrt(np.square(im_dx) + np.square(im_dy))
     grad_angle = np.arctan(np.divide(im_dy, im_dx + epsilon))
-    grad_angle = np.rad2deg(grad_angle)
-    grad_angle = grad_angle%180
+    grad_angle = grad_angle+(np.pi/2)
     return grad_mag, grad_angle
 
 
@@ -45,13 +45,22 @@ def build_histogram(grad_mag, grad_angle, cell_size):
         for j in range(grad_mag.shape[1]):
             cell_row_index = i//cell_size
             cell_col_index = j//cell_size
-            bin_index = math.ceil(grad_angle[i, j]/30) - 1
+            bin_index = math.ceil(grad_angle[i, j]/(np.pi/bin_length)) - 1
             ori_histo[cell_row_index, cell_col_index, bin_index] += 1
     return ori_histo
 
 
 def get_block_descriptor(ori_histo, block_size):
     # To do
+    normalized_rows = ori_histo.shape[0]-(block_size-1)
+    normalized_cols = ori_histo.shape[1]-(block_size-1)
+    normalized_bins = ori_histo.shape[2]*(block_size**2)
+    ori_histo_normalized = np.zeros((normalized_rows, normalized_cols, normalized_bins))
+    for i in range(normalized_rows):
+        for j in range(normalized_cols):
+            temp_histo = ori_histo[i:i+block_size, j:j+block_size, :]
+            temp_histo = np.reshape(temp_histo, (normalized_bins))
+            ori_histo_normalized[i, j, :] = temp_histo / np.sqrt(temp_histo.sum()**2 + epsilon)
     return ori_histo_normalized
 
 
@@ -59,6 +68,21 @@ def extract_hog(im):
     # convert grey-scale image to double format
     im = im.astype('float') / 255.0
     # To do
+    filter_x, filter_y = get_differential_filter()
+    print("Shapes: ")
+    print("image "+str(im.shape))
+    im = filter_image(im, np.array([[0.05472157, 0.11098164, 0.05472157], [0.11098164, 0.22508352, 0.11098164], [0.05472157, 0.11098164, 0.05472157]]))
+    gradient_x = filter_image(im, filter_x)
+    gradient_y = filter_image(im, filter_y)
+    print("gradients "+str(gradient_x.shape))
+    gradient_mag, gradient_angle = get_gradient(gradient_x, gradient_y)
+    print("gradient mag "+str(gradient_mag.shape))
+    print("gradient angle "+str(gradient_angle.shape))
+    histo = build_histogram(gradient_mag, gradient_angle, 8)
+    print("original histogram "+str(histo.shape))
+    hog = get_block_descriptor(histo, 2)
+    print("normalized histo "+str(hog.shape))
+    visualize_hog(im, histo, 8)
     return hog
 
 
@@ -82,19 +106,10 @@ def visualize_hog(im, ori_histo, cell_size):
 
 
 if __name__=='__main__':
-    filter_x, filter_y = get_differential_filter()
-    # im = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
     im = cv2.imread('cameraman.tif', 0)
-    im = cv2.imread('einstein.jpg', 0)
-    im = im.astype('float') / 255.0
-    im = filter_image(im, np.array([[0.05472157, 0.11098164, 0.05472157], [0.11098164, 0.22508352, 0.11098164], [0.05472157, 0.11098164, 0.05472157]]))
-    gradient_x = filter_image(im, filter_x)
-    gradient_y = filter_image(im, filter_y)
-    gradient_mag, gradient_angle = get_gradient(gradient_x, gradient_y)
-    np.savetxt("gradient_mag.txt", gradient_mag)
-    np.savetxt("gradient_angle.txt", gradient_angle)
-    histo = build_histogram(gradient_mag, gradient_angle, 8)
-    visualize_hog(im, histo, 8)
-    # hog = extract_hog(im)
+    # im = cv2.imread('einstein.jpg', 0)
+    hog = extract_hog(im)
+    # print(filter_image(np.ones((256, 256)), filter_x))
+    # print(filter_image(np.ones((256, 256)), filter_y))
 
 
