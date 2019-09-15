@@ -24,14 +24,22 @@ def filter_image(im, filter):
             im_filtered[i,j] = np.sum(filter*im_to_process[i:i+filter.shape[0], j:j+filter.shape[1]])
     return im_filtered
 
+def normalizeAngle(a):
+    if a<0:
+        return a+np.pi
+    else:
+        return a
 
 def get_gradient(im_dx, im_dy):
     # To do
     grad_mag = np.zeros((im_dx.shape[0], im_dx.shape[1]))
     grad_angle = np.zeros((im_dx.shape[0], im_dx.shape[1]))
     grad_mag =  np.sqrt(np.square(im_dx) + np.square(im_dy))
-    grad_angle = np.arctan(np.divide(im_dy, im_dx + epsilon))
-    grad_angle = grad_angle+(np.pi/2)
+    grad_angle = np.arctan2(im_dy, im_dx)
+    vfunc = np.vectorize(normalizeAngle)
+    grad_angle = vfunc(grad_angle)
+    print(grad_angle.min())
+    print(grad_angle.max())
     return grad_mag, grad_angle
 
 
@@ -106,9 +114,16 @@ def visualize_hog(im, ori_histo, cell_size):
 
 
 if __name__=='__main__':
-    im = cv2.imread('cameraman.tif', 0)
-    # im = cv2.imread('einstein.jpg', 0)
-    hog = extract_hog(im)
+    # im = cv2.imread('cameraman.tif', 0)
+    im = cv2.imread('einstein.jpg', 0)
+    # im = filter_image(im, np.array([[0.05472157, 0.11098164, 0.05472157], [0.11098164, 0.22508352, 0.11098164], [0.05472157, 0.11098164, 0.05472157]]))
+    dx, dy = get_differential_filter()
+    im_dx = filter_image(im, dx)
+    im_dy = filter_image(im, dy)
+    gradient_mag, gradient_angle = get_gradient(im_dx, im_dy)
+    # hog = extract_hog(im)
+    plt.imshow(gradient_angle)
+    plt.show()
     # print(filter_image(np.ones((256, 256)), filter_x))
     # print(filter_image(np.ones((256, 256)), filter_y))
 
