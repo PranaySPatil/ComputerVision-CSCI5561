@@ -1,13 +1,11 @@
 import cv2
 import numpy as np
 # import cupy as np
-import scipy.io as sio
 import matplotlib.pyplot as plt
 import math
 import random
 from sklearn.neighbors import NearestNeighbors
 from sklearn.neighbors import KNeighborsClassifier
-from scipy import interpolate
 
 def find_affine_transform(a, b):
     a_transpose = np.transpose(a)
@@ -18,11 +16,6 @@ def find_affine_transform(a, b):
 def find_match(img1, img2):
     # To do
     sift = cv2.xfeatures2d.SIFT_create()
-    #sift2 = cv2.SIFT()
-
-    matcher = cv2.BFMatcher()
-    img1_key_points = sift.detect(img1)
-    img2_key_points = sift.detect(img2)
 
     kp1, des1 = sift.detectAndCompute(img1,None)
     kp2, des2 = sift.detectAndCompute(img2,None)
@@ -68,7 +61,7 @@ def align_image_using_feature(x1, x2, ransac_thr, ransac_iter):
             a_test[1] = np.array([0, 0, 0, x1[i][0], x1[i][1], 1])
             b_test[0] = x2[i][0]
             b_test[1] = x2[i][1]
-            error_matrix = b_test - np.dot(a_test, affine_transform)#np.insert(x2[i], 2, 1) - np.dot(affine_transform, np.insert(x1[i], 2, 1))
+            error_matrix = b_test - np.dot(a_test, affine_transform)
             error = np.hypot(error_matrix[0], error_matrix[1])
             if error < ransac_thr:
                 inliers_count += 1
@@ -92,7 +85,6 @@ def warp_image(img, A, output_size):
     # To do
     img_warped = np.zeros(output_size)
     img_warped2 = np.zeros(output_size)
-    inverse_transform = np.linalg.inv(A)
     for i in range(output_size[0]):
         for j in range(output_size[1]):
             x = np.ones((3,1))
@@ -103,16 +95,6 @@ def warp_image(img, A, output_size):
             y2 = math.floor(x_prime[1][0])
             if x2>=0 and x2<img.shape[1] and y2>=0 and y2<img.shape[0]:
                 img_warped[i][j] = img[y2][x2]
-    # for i in range(img.shape[0]):
-    #     for j in range(img.shape[1]):
-    #         x = np.ones((3,1))
-    #         x[0][0] = j
-    #         x[1][0] = i
-    #         x_prime = np.dot(inverse_transform, x)
-    #         x2 = math.floor(x_prime[0][0])
-    #         y2 = math.floor(x_prime[1][0])
-    #         if x2>=0 and x2<output_size[1] and y2>=0 and y2<output_size[0]:
-    #             img_warped2[y2][x2] = img[i][j]
     return img_warped
 
 def get_differential_filter():
@@ -149,33 +131,19 @@ def align_image(template, target, A):
     for i in range(template.shape[0]):
         for j in range(template.shape[1]):
             dI = np.array([I_dx[i][j], I_dy[i][j]])
-            # dw_dp = np.array([[i, 0, j, 0, 1, 0], [0, i, 0,j, 0, 1]])
             dw_dp = np.array([[j, i, 1, 0, 0, 0], [0, 0, 0, j, i, 1]])
             dI_x_dw_dp[index] = np.dot(dI, dw_dp)
             for k in range(dI_x_dw_dp.shape[1]):
                 steepest_distance_images[k][i][j] = dI_x_dw_dp[index][k]
             index += 1
-    # for i in range(template.shape[0]):
-    #     for j in range(template.shape[1]):
-    #         dI = np.array([I_dx[i][j], I_dy[i][j]])
-    #         # dw_dp = np.array([[i, 0, j, 0, 1, 0], [0, i, 0,j, 0, 1]])
-    #         dw_dp = np.array([[i, j, 1, 0, 0, 0], [0, 0, 0, i, j, 1]])
-    #         dI_x_dw_dp2 = dI_x_dw_dp2 + np.dot(dI, dw_dp)
-    # print(hessian)
+    # visualize steepest gradients
     # fig, axes = plt.subplots(1, 6)
     # plt.subplots_adjust(wspace=0, hspace=0)
     # for i in range(len(steepest_distance_images)):
     #     axes[i].axis('off')
     #     axes[i].imshow(steepest_distance_images[i],  cmap='gray')
     # plt.show()
-    # fig, axes = plt.subplots(1, 6)
-    # plt.subplots_adjust(wspace=0, hspace=0)
-    # for i in range(len(steepest_distance_images)):
-    #     axes[i].axis('off')
-    #     axes[i].imshow(steepest_distance_images[i])
-    # plt.show()
     hessian = np.dot(np.transpose(dI_x_dw_dp), dI_x_dw_dp)
-    # hessian2 = np.dot(np.transpose(dI_x_dw_dp2), dI_x_dw_dp2)
     hessian_inverse = np.linalg.inv(hessian)
     dp_norm = 1
     iteration = 1
@@ -184,9 +152,6 @@ def align_image(template, target, A):
         # plt.imshow(warped_image)
         # plt.show()
         error_image = warped_image - template
-        # error_image = cv2.normalize(error_image, error_image, 0, 1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-        # xmax, xmin = error_image.max(), error_image.min()
-        # error_image = (error_image - xmin)/(xmax - xmin)
         error_value = np.linalg.norm(error_image)
         dp = np.dot(hessian_inverse, np.dot(np.transpose(dI_x_dw_dp), np.reshape(error_image, (template.shape[0]*template.shape[1], 1))))
         dp_norm = np.linalg.norm(dp)
@@ -194,7 +159,6 @@ def align_image(template, target, A):
         dp[0][0] = dp[0][0] + 1
         dp[1][1] = dp[1][1] + 1
         A = np.dot(A, np.linalg.inv(dp))
-        # A = A + np.linalg.inv(dp)
         if iteration%10 == 0:
             print("Iteration "+str(iteration))
             print(error_value)
@@ -202,8 +166,6 @@ def align_image(template, target, A):
         errors[0].append(error_value)
         errors[1].append(iteration)
         iteration += 1
-        # plt.imshow(error_image)
-        # plt.show()
     return A, errors
 
 
@@ -211,7 +173,6 @@ def track_multi_frames(template, target_list):
     A_list = []
     x1, x2 = find_match(template, target_list[0])
     A, x1, x2 = align_image_using_feature(x1, x2, 6, 10000)
-    # A = np.load("affine_matrix.npy")
     for target in target_list:
         A_refined, errors = align_image(template, target, A)
         A_list.append(A_refined)
@@ -321,26 +282,20 @@ if __name__ == '__main__':
     for i in range(4):
         target = cv2.imread('./Hyun_Soo_target{}.jpg'.format(i+1), 0)  # read as grey scale image
         target_list.append(target)
-    # x1, x2 = find_match(template, target_list[0])
-    # A, x1, x2 = align_image_using_feature(x1, x2, 6, 10000)
-    # template = cv2.normalize(template, template, 0, 1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-    # target_list[0] = cv2.normalize(target_list[0], target_list[0], 0, 1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-    # visualize_find_match(template, target_list[0], x1, x2)
+    x1, x2 = find_match(template, target_list[0])
+    visualize_find_match(template, target_list[0], x1, x2)
+
+    A, x1, x2 = align_image_using_feature(x1, x2, 6, 10000)
     # np.save("affine_matrix.npy", A)
-    A = np.load("affine_matrix.npy")
-    # img_warped = warp_image(target_list[0], A, template.shape)
-    # plt.imshow(img_warped, cmap='gray')
-    # plt.axis('off')
-    # plt.show()
-    # img_warped, img_warped_2 = warp_image(target_list[0], A, template.shape)
-    # plt.imshow(img_warped, cmap='gray', vmin=0, vmax=255)
-    # plt.axis('off')
-    # plt.show()
-    # plt.imshow(img_warped_2, cmap='gray', vmin=0, vmax=255)
-    # plt.axis('off')
-    # plt.show()
-    # A_refined, errors = align_image(template, target_list[0], A)
-    # visualize_align_image(template, target_list[0], A, A_refined, errors)
+    # A = np.load("affine_matrix.npy")
+    
+    img_warped = warp_image(target_list[0], A, template.shape)
+    plt.imshow(img_warped, cmap='gray')
+    plt.axis('off')
+    plt.show()
+    
+    A_refined, errors = align_image(template, target_list[0], A)
+    visualize_align_image(template, target_list[0], A, A_refined, errors)
 
     A_list = track_multi_frames(template, target_list)
     visualize_track_multi_frames(template, target_list, A_list)
