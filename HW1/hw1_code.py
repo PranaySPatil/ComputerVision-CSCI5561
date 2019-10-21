@@ -69,28 +69,16 @@ def get_block_descriptor(ori_histo, block_size):
             temp_histo = np.reshape(temp_histo, (normalized_bins))
             ori_histo_normalized[i, j, :] = temp_histo / (np.linalg.norm(temp_histo)+epsilon)
     block_desciptor = np.reshape(ori_histo_normalized, (normalized_rows*normalized_cols*normalized_bins))
-    print(block_desciptor)
     return block_desciptor
 
 def extract_hog(im):
     # convert grey-scale image to double format
     im = im.astype('float') / 255.0
-    plt.imshow(im)
-    plt.show()
     diff_x, diif_y = get_differential_filter()
     dI_dx = filter_image(im, diff_x)
     dI_dy = filter_image(im, diif_y)
-    plt.imshow(dI_dx)
-    plt.show()
-    plt.imshow(dI_dy)
-    plt.show()
     gradient_mag, gradient_angle = get_gradient(dI_dx, dI_dy)
-    plt.imshow(gradient_mag)
-    plt.show()
-    plt.imshow(gradient_angle)
-    plt.show()
     ori_histo = build_histogram(gradient_mag, gradient_angle, 8)
-    visualize_histo(im, ori_histo, 8)
     hog = get_block_descriptor(ori_histo, 2)
 
     # visualize to verify
@@ -138,4 +126,4 @@ def visualize_hog(im, hog, cell_size, block_size):
 
 if __name__=='__main__':
     im = cv2.imread('cameraman.tif', cv2.IMREAD_GRAYSCALE)
-    extract_hog(im)
+    hog = extract_hog(im)
