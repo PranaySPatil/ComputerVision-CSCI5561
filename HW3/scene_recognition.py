@@ -1,12 +1,9 @@
-import csv
 import os
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from sklearn.neighbors import NearestNeighbors
 from sklearn.cluster import KMeans
-from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC, LinearSVC
 from scipy import stats
 from pathlib import Path, PureWindowsPath
@@ -50,12 +47,7 @@ def compute_dsift(img, size, stride):
                                     for x in range(0, img.shape[1], stride)]
     
     keypoints, dense_feature = sift.compute(img, kp)
-    # for i in range(0,img.shape[0]-size+1, stride):
-    #     for j in range(0, img.shape[1]-size+1, stride):
-    #         kp, des = sift.detectAndCompute(img[i:i+size,j:j+size],None)
-    #         if des is not None and len(des)>0:
-    #             dense_feature.append(des[0])
-    # dense_feature = np.array(dense_feature)
+
     return dense_feature
 
 
@@ -63,9 +55,8 @@ def get_tiny_image(img, output_size):
     # To do
     img = cv2.imread(img, cv2.IMREAD_GRAYSCALE)
     img_resized = cv2.resize(img, output_size)
-    # img_resized = img_resized/np.linalg.norm(img_resized)
     img_resized = (img_resized-np.mean(img_resized))/np.std(img_resized)
-    # img_resized.resize((1, output_size[0]*output_size[1]))
+    
     return img_resized
 
 
@@ -118,6 +109,7 @@ def build_visual_dictionary(dense_feature_list, dic_size):
     print("calculating visual dictionary")
     kmeans = KMeans(n_clusters=dic_size)
     vocab = kmeans.fit(dense_feature_list)
+
     return vocab.cluster_centers_
 
 
@@ -136,47 +128,49 @@ def classify_knn_bow(label_classes, label_train_list, img_train_list, label_test
     # To do
     dense_feature_list = []
     feature_list = None
-    dic_size = 50
+    dic_size = 200
     img = None
     print("calculating dense features list")
     i = 1
-    # for img_path in img_train_list:
-    #     print(str(i) + " out of "+str(len(img_train_list)))
-    #     img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-    #     feature_list = compute_dsift(img, 20, 10)
-    #     dense_feature_list.extend(feature_list)
-    #     i += 1
-    # visual_dict = build_visual_dictionary(dense_feature_list, 100)
-    # np.save("visualDict.npy", visual_dict)
-    # print("saved dictionary")
-    visual_dict = np.load("visualDict_knn.npy", allow_pickle=True)
 
-    x_train = np.load("x_train_bow_knn.npy")
-    x_test = np.load("x_test_bow_knn.npy")
+    for img_path in img_train_list:
+        print(str(i) + " out of "+str(len(img_train_list)))
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        feature_list = compute_dsift(img, 20, 10)
+        dense_feature_list.extend(feature_list)
+        i += 1
 
-    # x_train = []
-    # x_test = []
+    visual_dict = build_visual_dictionary(dense_feature_list, dic_size)
+    np.save("visualDict_knn.npy", visual_dict)
+    print("saved dictionary")
 
-    # for img_path in img_train_list:
-    #     img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-    #     feature_list = compute_dsift(img, 20, 10)
-    #     x_train.append(compute_bow(feature_list, visual_dict))
+    # load previously built dictionary
+    # visual_dict = np.load("visualDict_knn.npy", allow_pickle=True)
 
-    # for img_path in img_test_list:
-    #     img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-    #     feature_list = compute_dsift(img, 20, 10)
-    #     x_test.append(compute_bow(feature_list, visual_dict))
+    x_train = []
+    x_test = []
+
+    for img_path in img_train_list:
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        feature_list = compute_dsift(img, 20, 10)
+        x_train.append(compute_bow(feature_list, visual_dict))
+
+    for img_path in img_test_list:
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        feature_list = compute_dsift(img, 20, 10)
+        x_test.append(compute_bow(feature_list, visual_dict))
     
-    # x_train = np.array(x_train)
-    # x_test = np.array(x_test)
-
-    x_train = x_train.reshape((1500, 200))
-    x_test = x_test.reshape((1500, 200))
+    x_train = np.array(x_train)
+    x_test = np.array(x_test)
+    x_train = x_train.reshape((1500, dic_size))
+    x_test = x_test.reshape((1500, dic_size))
     label_test_pred = []
     accuracy = 0
     confusion = np.zeros((15, 15))
-    nbrs = NearestNeighbors(n_neighbors=1).fit(x_train)
+    k = 8
+    nbrs = NearestNeighbors(n_neighbors=k).fit(x_train)
     distances, indices = nbrs.kneighbors(x_test)
+
     for neibhbors in indices:
         predictions = [label_train_list[i] for i in neibhbors]
         label_test_pred.append(max(set(predictions), key=predictions.count))
@@ -191,14 +185,17 @@ def classify_knn_bow(label_classes, label_train_list, img_train_list, label_test
     confusion = confusion / np.linalg.norm(confusion)
     accuracy = accuracy/len(label_test_pred)
     visualize_confusion_matrix(confusion, accuracy, label_classes)
+
     return confusion, accuracy
 
 
-def predict_svm(feature_train, label_train, feature_test, n_classes):
+def predict_svm(feature_train, label_train, feature_test):
     # To do
     clf = LinearSVC()
     models = {}
+    n_classes = 15
     predictions = np.ndarray((feature_test.shape[0], n_classes), dtype=float)
+
     for i in range(0, n_classes):
         labels_for_model = []
         for label in label_train:
@@ -210,6 +207,7 @@ def predict_svm(feature_train, label_train, feature_test, n_classes):
         predictions[:,i] = models[i].decision_function(feature_test)
     
     label_test_pred = []
+
     for i in range(len(feature_test)):
         predicted_label = np.where(predictions[i] == np.amax(predictions[i]))
         label_test_pred.append(predicted_label[0][0])
@@ -219,12 +217,44 @@ def predict_svm(feature_train, label_train, feature_test, n_classes):
 
 def classify_svm_bow(label_classes, label_train_list, img_train_list, label_test_list, img_test_list):
     # To do
-    x_train = np.load("x_train_bow_knn.npy")
-    x_test = np.load("x_test_bow_knn.npy")
-    x_train = x_train.reshape((1500, 200))
-    x_test = x_test.reshape((1500, 200))
+    # Reading the dict saved in classify_knn_bow, Uncomment till line 232 to build the dictionary again
+    # dense_feature_list = []
+    # feature_list = None
+    # dic_size = 200
+    # img = None
+    # print("calculating dense features list")
+    # i = 1
+    # for img_path in img_train_list:
+    #     print(str(i) + " out of "+str(len(img_train_list)))
+    #     img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    #     feature_list = compute_dsift(img, 20, 10)
+    #     dense_feature_list.extend(feature_list)
+    #     i += 1
+
+    # visual_dict = build_visual_dictionary(dense_feature_list, dic_size)
+
+    visual_dict = np.load("visualDict_knn.npy", allow_pickle=True)
+    dic_size = 200
+    x_train = []
+    x_test = []
+
+    for img_path in img_train_list:
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        feature_list = compute_dsift(img, 20, 10)
+        x_train.append(compute_bow(feature_list, visual_dict))
+
+    for img_path in img_test_list:
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+        feature_list = compute_dsift(img, 20, 10)
+        x_test.append(compute_bow(feature_list, visual_dict))
+    
+    x_train = np.array(x_train)
+    x_test = np.array(x_test)
+    x_train = x_train.reshape((1500, dic_size))
+    x_test = x_test.reshape((1500, dic_size))
+    
     y_train = [label_classes.index(label) for label in label_train_list]
-    label_test_pred = predict_svm(x_train, y_train, x_test, len(label_classes))
+    label_test_pred = predict_svm(x_train, y_train, x_test)
     accuracy = 0
     confusion = np.zeros((15, 15))
 
@@ -260,9 +290,7 @@ def visualize_confusion_matrix(confusion, accuracy, label_classes):
 if __name__ == '__main__':
     # To do: replace with your dataset path
     label_classes, label_train_list, img_train_list, label_test_list, img_test_list = extract_dataset_info("./scene_classification_data")
-    img = cv2.imread(img_train_list[0], cv2.IMREAD_GRAYSCALE)
-    # plt.imshow(img)
-    # plt.show()
+    
     classify_knn_tiny(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
 
     classify_knn_bow(label_classes, label_train_list, img_train_list, label_test_list, img_test_list)
