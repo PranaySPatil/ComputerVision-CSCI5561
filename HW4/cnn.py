@@ -30,7 +30,6 @@ def fc(x, w, b):
     # TO DO
     y = np.transpose(np.dot(np.transpose(x), np.transpose(w)))
     y = y + b
-    # y = y/np.linalg.norm(y)
 
     return y
 
@@ -54,10 +53,7 @@ def loss_cross_entropy_softmax(x, y):
     # TO DO
     l = 0
     e_power_x = np.exp(x-max(x))
-    # e_power_x = np.exp(x)
     soft_max_x = e_power_x/sum(e_power_x)
-    # for i in range(10):
-    #     l += (y[i] * np.log(soft_max_x[i]))
     try:
         l = y * np.log(soft_max_x + np.finfo(float).eps)
     except:
@@ -69,7 +65,6 @@ def loss_cross_entropy_softmax(x, y):
 
 def relu(x):
     # TO DO
-    # relu_lambda = lambda t: t if t>0 else t*0.01
     relu_lambda = lambda t: max(0, t)
     v_func = np.vectorize(relu_lambda)
     y = v_func(x)
@@ -86,7 +81,6 @@ def relu_backward(dl_dy, x, y):
         if x_flat[i] > 0:
             dl_dx.append(dl_dy_flatten[i])
         else:
-            # dl_dx.append(0.01)
             dl_dx.append(0)
 
     return np.array(dl_dx).reshape((x_flat.shape[0], 1))
@@ -106,12 +100,6 @@ def conv(x, w_conv, b_conv):
                 im = x_pad[i:i+w_h, j:j+w_w, :].reshape(w_h, w_w)
                 y[i, j, c] = sum(sum(conv_filter * im)) + b_conv[c]
 
-    # x_pad = np.pad(x,((1, 1),(1, 1), (0, 0)),'constant')
-    # x_col = im2col(x_pad, w_h, w_w, stride)
-    # filter_col = np.reshape(w_conv, (w_c2, -1))
-    # y = x_col.dot(filter_col.T) + np.transpose(b_conv)
-    # y = col2im(y, im_h, im_w, 1)
-    # return y/np.linalg.norm(y)
     return y
     
 
@@ -157,9 +145,6 @@ def pool2x2_backward(dl_dy, x, y):
                 x_ = x[i*2:i*2+2, j*2:j*2+2, c]
                 mask = (x_ == np.max(x_))
                 dl_dx[i*2:i*2+2, j*2:j*2+2, c] = mask*dl_dy[i, j, c]
-
-                # if x[i, j, c] == y[i//dl_dx.shape[0], j//dl_dx.shape[1], c]:
-                #     dl_dx[i, j, c] = dl_dy[i//dl_dx.shape[0], j//dl_dx.shape[1], c]
 
     return dl_dx
 
@@ -286,7 +271,6 @@ def train_mlp(mini_batch_x, mini_batch_y):
 
     for iteration in range(1, 30000):
         print("Epoch #"+str(iteration))
-        print("Batch count #"+str(batch_count))
         if iteration % 5000 == 0:
             gamma = lambda_decay * gamma
         dL_dw1 = np.zeros((30, 196))
@@ -309,8 +293,6 @@ def train_mlp(mini_batch_x, mini_batch_y):
             dl_dx3, dl_dw2, dl_db2 = fc_backward(dl_dy, x3, w2, b2, y_tilde)
             dl_dx2 = relu_backward(dl_dx3, x2, x3)
             dl_dx1, dl_dw1, dl_db1 = fc_backward(dl_dx2, x, w1, b1, x2)
-            # dl_dx2 = relu_backward(dl_dy*dl_dx3, x2, x3)
-            # dl_dx1, dl_dw1, dl_db1 = fc_backward(dl_dy*dl_dx3*dl_dx2, x, w1, b1, x2)
             dL_dw1 += dl_dw1
             dL_db1 += dl_db1
             dL_dw2 += dl_dw2
@@ -333,27 +315,21 @@ def train_mlp(mini_batch_x, mini_batch_y):
 def train_cnn(mini_batch_x, mini_batch_y):
     # TO DO
     mean = 0
-    sigma = 1
+    sigma = 0.3
     w_conv = np.random.normal(mean, sigma, (3, 3, 1, 3))
-    # w_conv = w_conv/np.linalg.norm(w_conv)
     b_conv = np.random.normal(mean, sigma, (3, 1))
-    # b_conv = b_conv/np.linalg.norm(b_conv)
     w_fc = np.random.normal(mean, sigma, (10, 147))
-    # w_fc = w_fc/np.linalg.norm(w_fc)
     b_fc = np.random.normal(mean, sigma, (10, 1))
-    # b_fc = b_fc/np.linalg.norm(b_fc)
-    gamma = 0.5
-    m_L = 10
+    gamma = 1
     losses = []
-    lambda_decay = 0.9
+    lambda_decay = 0.7
 
     k = 0
     batch_count = 1
 
-    for iteration in range(1, 25000):
+    for iteration in range(1, 10000):
         print("Epoch #"+str(iteration))
-        # print("Batch count #"+str(batch_count))
-        if iteration % 5000 == 0:
+        if iteration % 1000 == 0:
             gamma = lambda_decay * gamma
         dL_dw_conv = np.zeros((3, 3, 1, 3))
         dL_db_conv = np.zeros((3, 1))
@@ -366,9 +342,7 @@ def train_cnn(mini_batch_x, mini_batch_y):
             x = mini_batch_x[k,:,i]
             y = mini_batch_y[k,:,i]
             x = x.reshape((14, 14, 1), order='F')
-            # x = x/np.linalg.norm(x)
             y = y.reshape((y.shape[0], 1))
-            # y = y/np.linalg.norm(y)
             x1 = conv(x, w_conv, b_conv)
             x2 = relu(x1)
             x3 = pool2x2(x2)
@@ -396,11 +370,8 @@ def train_cnn(mini_batch_x, mini_batch_y):
         b_conv = b_conv - ((gamma/batch_size) * dL_db_conv)
         w_fc = w_fc - ((gamma/batch_size) * dL_dw_fc)
         b_fc = b_fc - ((gamma/batch_size) * dL_db_fc)
-        # if m_L >  L/mini_batch_x[k].shape[1]:
-        #     m_L = min(m_L, L/mini_batch_x[k].shape[1])
-        #     w_conv2, b_conv2, w_fc2, b_fc2 = w_conv, b_conv, w_fc, b_fc 
 
-    plt.plot(list(range(1, 25000)), losses)
+    plt.plot(list(range(1, 10000)), losses)
     plt.show()
     return w_conv, b_conv, w_fc, b_fc
 
@@ -410,6 +381,3 @@ if __name__ == '__main__':
     # main.main_slp()
     # main.main_mlp()
     main.main_cnn()
-
-
-
